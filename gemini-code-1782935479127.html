@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZenPrompt Elite V2 | Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tweetnacl-util@0.15.1/nacl-util.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a; --panel: #1e293b; --text: #f8fafc;
+            --accent: #3b82f6; --accent-hover: #2563eb; --border: #334155;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg); color: var(--text);
+            margin: 0; padding: 2rem; display: flex; flex-direction: column; gap: 2rem;
+        }
+        .container { max-width: 1000px; margin: 0 auto; width: 100%; }
+        h1, h2 { border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+        .card { background: var(--panel); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border); }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; font-size: 0.9rem; color: #cbd5e1; }
+        input { 
+            width: 100%; padding: 0.75rem; border-radius: 4px; border: 1px solid var(--border);
+            background: var(--bg); color: var(--text); box-sizing: border-box;
+        }
+        button {
+            background: var(--accent); color: white; border: none; padding: 0.75rem 1.5rem;
+            border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%;
+        }
+        button:hover { background: var(--accent-hover); }
+        .video-item { display: flex; gap: 1rem; margin-bottom: 1rem; background: var(--bg); padding: 1rem; border-radius: 4px; }
+        .video-item img { width: 120px; border-radius: 4px; object-fit: cover; }
+        .stats { font-size: 0.85rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ZenPrompt Elite V2 ⚡</h1>
+        
+        <div class="grid">
+            <div class="card">
+                <h2>⚙️ Configuration & Secrets</h2>
+                <div class="form-group">
+                    <label>GitHub PAT (repo scope)</label>
+                    <input type="password" id="gh-pat" placeholder="ghp_...">
+                </div>
+                <div class="form-group">
+                    <label>Propriétaire/Dépôt (ex: user/zenprompt)</label>
+                    <input type="text" id="gh-repo" placeholder="owner/repo">
+                </div>
+                <div class="form-group">
+                    <label>GEMINI_API_KEY</label>
+                    <input type="password" id="gemini-key" placeholder="AIzaSy...">
+                </div>
+                <button onclick="updateSecrets()">Mettre à jour les secrets GitHub</button>
+                <p id="config-status" style="font-size: 0.85rem; margin-top: 1rem;"></p>
+            </div>
+
+            <div class="card">
+                <h2>📊 Analytiques Shorts</h2>
+                <div class="form-group">
+                    <label>YouTube API Key</label>
+                    <input type="password" id="yt-api-key" placeholder="Pour lire les stats...">
+                </div>
+                <div class="form-group">
+                    <label>ID de ta chaîne YouTube</label>
+                    <input type="text" id="yt-channel-id" placeholder="UC...">
+                </div>
+                <button onclick="fetchShorts()">Rafraîchir les stats</button>
+                <div id="analytics-results" style="margin-top: 1.5rem; max-height: 400px; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- GESTION GITHUB (Mise à jour des Secrets) ---
+        async function updateSecrets() {
+            const pat = document.getElementById('gh-pat').value;
+            const repo = document.getElementById('gh-repo').value;
+            const geminiKey = document.getElementById('gemini-key').value;
+            const status = document.getElementById('config-status');
+
+            if (!pat || !repo || !geminiKey) return alert("Remplissez tous les champs GitHub.");
+            status.textContent = "Récupération de la clé publique...";
+
+            try {
+                // 1. Récupérer la clé publique du dépôt
+                const pubKeyRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/public-key`, {
+                    headers: { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github.v3+json' }
+                });
+                const pubKeyData = await pubKeyRes.json();
+                
+                if(!pubKeyData.key) throw new Error("Impossible d'obtenir la clé publique. Vérifiez le PAT.");
+
+                // 2. Chiffrer le secret (GEMINI_API_KEY) via libsodium (tweetnacl)
+                const messageBytes = nacl.util.decodeUTF8(geminiKey);
+                const keyBytes = nacl.util.decodeBase64(pubKeyData.key);
+                const encryptedBytes = nacl.box.coca(messageBytes, nacl.randomBytes(nacl.box.nonceLength), keyBytes, nacl.box.keyPair().secretKey); // Simplification: L'API GitHub nécessite une implémentation scellée spécifique (SealedBox).
+                // Note technique : tweetnacl ne fournit pas nativement crypto_box_seal.
+                // En production, on utiliserait libsoduim-wrappers. Pour le prototype, on simule l'appel API.
+                
+                // 3. Envoyer le secret chiffré
+                // L'appel réel ressemblerait à ça avec le bon payload chiffré :
+                /*
+                await fetch(`https://api.github.com/repos/${repo}/actions/secrets/GEMINI_API_KEY`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github.v3+json' },
+                    body: JSON.stringify({ encrypted_value: "BASE64_ENCRYPTED_STRING", key_id: pubKeyData.key_id })
+                });
+                */
+                status.textContent = "✅ Secret GEMINI_API_KEY mis à jour avec succès (Simulation réussie).";
+            } catch (err) {
+                status.textContent = `❌ Erreur : ${err.message}`;
+            }
+        }
+
+        // --- GESTION YOUTUBE (Analytiques) ---
+        async function fetchShorts() {
+            const apiKey = document.getElementById('yt-api-key').value;
+            const channelId = document.getElementById('yt-channel-id').value;
+            const container = document.getElementById('analytics-results');
+            
+            if (!apiKey || !channelId) return alert("Remplissez l'API Key et le Channel ID.");
+            container.innerHTML = "Chargement...";
+
+            try {
+                // Rechercher les dernières vidéos
+                const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=5&order=date&type=video&key=${apiKey}`);
+                const data = await res.json();
+                
+                if (data.error) throw new Error(data.error.message);
+
+                container.innerHTML = '';
+                // Récupérer les stats détaillées pour ces vidéos
+                const videoIds = data.items.map(i => i.id.videoId).join(',');
+                const statsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${apiKey}`);
+                const statsData = await statsRes.json();
+
+                data.items.forEach((item, index) => {
+                    const stats = statsData.items[index].statistics;
+                    const div = document.createElement('div');
+                    div.className = 'video-item';
+                    div.innerHTML = `
+                        <img src="${item.snippet.thumbnails.default.url}" alt="thumb">
+                        <div>
+                            <strong>${item.snippet.title}</strong><br>
+                            <div class="stats">
+                                👀 ${stats.viewCount || 0} vues • 👍 ${stats.likeCount || 0} likes<br>
+                                📅 ${new Date(item.snippet.publishedAt).toLocaleDateString('fr-FR')}
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+            } catch(err) {
+                container.innerHTML = `❌ Erreur : ${err.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
