@@ -84,7 +84,7 @@
 
             if (!pat || !repo || !geminiKey) return alert("Remplissez tous les champs GitHub.");
             status.textContent = "Récupération de la clé publique...";
-
+        
             try {
                 // 1. Récupérer la clé publique du dépôt
                 const pubKeyRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/public-key`, {
@@ -94,28 +94,37 @@
                 
                 if(!pubKeyData.key) throw new Error("Impossible d'obtenir la clé publique. Vérifiez le PAT.");
 
-                // 2. Chiffrer le secret (GEMINI_API_KEY) via libsodium (tweetnacl)
-                const messageBytes = nacl.util.decodeUTF8(geminiKey);
-                const keyBytes = nacl.util.decodeBase64(pubKeyData.key);
-                const encryptedBytes = nacl.box.coca(messageBytes, nacl.randomBytes(nacl.box.nonceLength), keyBytes, nacl.box.keyPair().secretKey); // Simplification: L'API GitHub nécessite une implémentation scellée spécifique (SealedBox).
-                // Note technique : tweetnacl ne fournit pas nativement crypto_box_seal.
-                // En production, on utiliserait libsoduim-wrappers. Pour le prototype, on simule l'appel API.
-                
-                // 3. Envoyer le secret chiffré
-                // L'appel réel ressemblerait à ça avec le bon payload chiffré :
-                /*
-                await fetch(`https://api.github.com/repos/${repo}/actions/secrets/GEMINI_API_KEY`, {
+                status.textContent = "Chiffrement du secret...";
+
+                // 2. Chiffrement réel avec libsodium-wrappers (requis par GitHub)
+                await sodium.ready; // Attendre que la librairie crypto soit chargée
+                const binkey = sodium.from_base64(pubKeyData.key, sodium.base64_variants.ORIGINAL);
+                const binsec = sodium.from_string(geminiKey);
+                const encBytes = sodium.crypto_box_seal(binsec, binkey);
+                const encryptedValue = sodium.to_base64(encBytes, sodium.base64_variants.ORIGINAL);
+
+                status.textContent = "Envoi à GitHub...";
+
+                // 3. Envoi réel du secret chiffré à l'API GitHub
+                const putRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/GEMINI_API_KEY`, {
                     method: 'PUT',
                     headers: { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github.v3+json' },
-                    body: JSON.stringify({ encrypted_value: "BASE64_ENCRYPTED_STRING", key_id: pubKeyData.key_id })
+                    body: JSON.stringify({ 
+                        encrypted_value: encryptedValue, 
+                        key_id: pubKeyData.key_id 
+                    })
                 });
-                */
-                status.textContent = "✅ Secret GEMINI_API_KEY mis à jour avec succès (Simulation réussie).";
+
+                if (putRes.ok || putRes.status === 201 || putRes.status === 204) {
+                    status.textContent = "✅ Secret GEMINI_API_KEY mis à jour avec succès dans GitHub !";
+                } else {
+                    throw new Error(`Erreur lors de l'envoi (${putRes.status})`);
+                }
+        
             } catch (err) {
                 status.textContent = `❌ Erreur : ${err.message}`;
             }
         }
-
         // --- GESTION YOUTUBE (Analytiques) ---
         async function fetchShorts() {
             const apiKey = document.getElementById('yt-api-key').value;
