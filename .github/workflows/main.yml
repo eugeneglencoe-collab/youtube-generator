@@ -17,8 +17,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Installer ffmpeg (Indispensable pour assembler/couper la vidéo)
-        uses: nwai/setup-ffmpeg@v3
+      - name: Installer ffmpeg (Installation native Ubuntu)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Installer Deno (Résolution native des challenges JS de YouTube)
         uses: denoland/setup-deno@v2
