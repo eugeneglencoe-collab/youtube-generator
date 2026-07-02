@@ -13,7 +13,7 @@ from google.auth.transport.requests import Request
 
 # --- CONFIGURATION INITIALE ---
 # REMPLACE CETTE URL PAR LA CHAÎNE YOUTUBE QUE TU VEUX SURVEILLER ET REPURPOSER
-TARGET_CHANNEL_URL = "https://www.youtube.com/@ChannelCible" 
+TARGET_CHANNEL_URL = "https://www.youtube.com/@AnymeTV" 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 genai.configure(api_key=GEMINI_API_KEY)
