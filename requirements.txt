@@ -1,9 +1,7 @@
-youtube-transcript-api==0.6.2
-google-generativeai
 yt-dlp
-opencv-python-headless
+google-generativeai
 moviepy>=2.0.0
+opencv-python-headless
 google-api-python-client
-google-auth-httplib2
 google-auth-oauthlib
 numpy<2.0.0
