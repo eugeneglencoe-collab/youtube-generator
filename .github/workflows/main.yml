@@ -2,7 +2,7 @@ name: ZenPrompt Elite V2 - Repurposing Automatisé
 
 on:
   schedule:
-    - cron: '0 18 * * *' # Se déclenche automatiquement tous les jours (Heure Française : 19h00 en hiver / 20h00 en été)
+    - cron: '0 18 * * *' # Se déclenche automatiquement tous les jours à 20h00 (Heure Française)
   workflow_dispatch: # Permet de le lancer manuellement avec le bouton "Run workflow"
 
 jobs:
@@ -15,13 +15,22 @@ jobs:
       - name: Configurer Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Mis à jour en 3.11 pour éviter l'obsolescence programmée par Google
+          python-version: '3.11'
+
+      - name: Installer un moteur JavaScript (Node.js)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Installer les dépendances
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install -U yt-dlp # Force la mise à jour immédiate contre les blocages YouTube
+          pip install -U yt-dlp
+
+      - name: Recréer le fichier cookies.txt depuis les Secrets GitHub
+        run: |
+          echo "${{ secrets.YT_COOKIES }}" > cookies.txt
 
       - name: Lancer le robot de repurposing
         env:
