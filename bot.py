@@ -9,24 +9,24 @@ from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 
 # --- CONFIGURATION ---
-# Utilise l'ID de chaîne unique pour plus de stabilité
+# Utilise l'URL complète de la chaîne
 TARGET_CHANNEL_URL = "https://www.youtube.com/channel/UCGfI2yGzrs45oQjL8FnOhjg" 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
 def get_latest_video_and_transcript():
-    print("[1] Recherche de la dernière vidéo...")
+    print("[1] Recherche de la dernière vidéo de la chaîne...")
     ydl_opts = {
         'extract_flat': True, 
         'playlist_items': '1', 
         'quiet': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(TARGET_CHANNEL_URL, download=False)
-        video_id = info.get('id') or info['entries'][0]['id']
+        video_id = info['entries'][0]['id']
         
-    print(f"[1] Vidéo trouvée : {video_id}. Téléchargement des sous-titres...")
+    print(f"[1] Vidéo détectée : {video_id}. Téléchargement des sous-titres...")
     sub_opts = {
         'skip_download': True,
         'writesubtitles': True,
@@ -37,7 +37,7 @@ def get_latest_video_and_transcript():
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
     
-    # Lecture du fichier sous-titres généré
+    # Lecture du fichier sous-titres
     text_content = ""
     for ext in ['.fr.vtt', '.en.vtt', '.vtt']:
         if os.path.exists(f"subtitle_file{ext}"):
@@ -64,6 +64,7 @@ def download_and_process_video(video_id, segment):
     cmd = f'yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{segment["start"]}-{segment["end"]}" -o raw_video.mp4 https://www.youtube.com/watch?v={video_id}'
     os.system(cmd)
     
+    # Montage vidéo
     clip = VideoFileClip("raw_video.mp4")
     w, h = clip.size
     target_w = int(h * 9/16)
@@ -85,8 +86,11 @@ def get_authenticated_service():
     return build('youtube', 'v3', credentials=creds)
 
 def upload_short(youtube, file_path, metadata):
-    print("[4] Upload...")
-    body = {'snippet': {'title': metadata['title'], 'categoryId': '22'}, 'status': {'privacyStatus': 'public'}}
+    print("[4] Upload sur YouTube...")
+    body = {
+        'snippet': {'title': metadata.get('title', 'Short généré par IA'), 'categoryId': '22'}, 
+        'status': {'privacyStatus': 'public'}
+    }
     media = MediaFileUpload(file_path, mimetype='video/mp4')
     response = youtube.videos().insert(part="snippet,status", body=body, media_body=media).execute()
     print(f"✅ Succès : https://youtube.com/shorts/{response['id']}")
