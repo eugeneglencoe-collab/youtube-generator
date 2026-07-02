@@ -17,17 +17,22 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Installer Node.js (Moteur JS pour contourner YouTube)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22' # Version à jour pour éviter les avertissements
+      - name: Installer ffmpeg (Indispensable pour assembler/couper la vidéo)
+        uses: nwai/setup-ffmpeg@v3
 
-      - name: Installer les dépendances
+      - name: Installer Deno (Résolution native des challenges JS de YouTube)
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v1.x
+
+      - name: Installer les dépendances Python
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          # L'argument --pre installe la version la plus récente de yt-dlp (Nightly)
           pip install -U --pre yt-dlp
+
+      - name: Nettoyer le cache yt-dlp au démarrage
+        run: yt-dlp --rm-cache-dir
 
       - name: Lancer le robot de repurposing
         env:
