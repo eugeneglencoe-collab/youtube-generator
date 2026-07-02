@@ -2,14 +2,13 @@ import os
 import json
 import yt_dlp
 import google.generativeai as genai
-from moviepy import VideoFileClip, TextClip, CompositeVideoClip
+from moviepy import VideoFileClip
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 
 # --- CONFIGURATION ---
-# Utilise l'URL complète de la chaîne
 TARGET_CHANNEL_URL = "https://www.youtube.com/channel/UCGfI2yGzrs45oQjL8FnOhjg" 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
@@ -17,16 +16,25 @@ genai.configure(api_key=GEMINI_API_KEY)
 def get_latest_video_and_transcript():
     print("[1] Recherche de la dernière vidéo de la chaîne...")
     ydl_opts = {
-        'extract_flat': True, 
+        'extract_flat': 'in_playlist', 
         'playlist_items': '1', 
         'quiet': True,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
+    
+    # On cible l'onglet /videos pour éviter les erreurs d'ID
+    channel_videos_url = f"{TARGET_CHANNEL_URL}/videos"
+    
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(TARGET_CHANNEL_URL, download=False)
+        info = ydl.extract_info(channel_videos_url, download=False)
         video_id = info['entries'][0]['id']
         
     print(f"[1] Vidéo détectée : {video_id}. Téléchargement des sous-titres...")
+    
+    # Nettoyage des anciens fichiers
+    for f in ['subtitle_file.fr.vtt', 'subtitle_file.en.vtt', 'subtitle_file.vtt']:
+        if os.path.exists(f): os.remove(f)
+        
     sub_opts = {
         'skip_download': True,
         'writesubtitles': True,
@@ -37,7 +45,6 @@ def get_latest_video_and_transcript():
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
     
-    # Lecture du fichier sous-titres
     text_content = ""
     for ext in ['.fr.vtt', '.en.vtt', '.vtt']:
         if os.path.exists(f"subtitle_file{ext}"):
@@ -50,7 +57,7 @@ def get_latest_video_and_transcript():
 def identify_viral_segment(transcript_text):
     print("[2] Analyse Gemini...")
     model = genai.GenerativeModel('gemini-1.5-flash')
-    prompt = f"Analyse ce texte et renvoie un JSON (start, end, title) pour un segment viral de 30s. Texte : {transcript_text[:10000]}"
+    prompt = f"Analyse ce texte et renvoie uniquement un JSON (start, end, title) pour un segment viral de 30s. Texte : {transcript_text[:10000]}"
     response = model.generate_content(prompt)
     try:
         cleaned = response.text.replace("```json", "").replace("```", "").strip()
@@ -64,7 +71,6 @@ def download_and_process_video(video_id, segment):
     cmd = f'yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{segment["start"]}-{segment["end"]}" -o raw_video.mp4 https://www.youtube.com/watch?v={video_id}'
     os.system(cmd)
     
-    # Montage vidéo
     clip = VideoFileClip("raw_video.mp4")
     w, h = clip.size
     target_w = int(h * 9/16)
