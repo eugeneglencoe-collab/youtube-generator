@@ -20,27 +20,21 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # --- 1. IA & EXTRACTION DE TRANSCRIPTION ---
 def get_latest_video_and_transcript():
-    """Utilise yt-dlp pour trouver la dernière vidéo et extrait ses sous-titres."""
     print("[1] Recherche de la dernière vidéo...")
     ydl_opts = {'extract_flat': True, 'playlist_items': '1', 'quiet': True}
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(TARGET_CHANNEL_URL, download=False)
         video_id = info['entries'][0]['id']
         
-    print(f"[1] Vidéo trouvée : {video_id}. Extraction de la transcription...")
+    print(f"[1] Vidéo trouvée : {video_id}. Tentative d'extraction...")
     try:
-        # Méthode universelle qui fonctionne même si la liste est vide ou complexe
+        # On tente de récupérer la transcription
         transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['fr', 'en'])
-        
-        # Vérification si transcript est une liste avant de joindre
-        if isinstance(transcript, list):
-            text_content = " ".join([t['text'] for t in transcript])
-            return video_id, text_content, transcript
-        else:
-            raise Exception("Format de transcription inattendu")
-            
+        text_content = " ".join([t['text'] for t in transcript])
+        return video_id, text_content, transcript
     except Exception as e:
-        print(f"Erreur transcription critique: {e}")
+        # Ici, le robot ne crashe plus, il nous prévient juste poliment
+        print(f"⚠️ Vidéo ignorée : Pas de sous-titres disponibles pour {video_id}.")
         return None, None, None
 
 def identify_viral_segment(transcript_text):
