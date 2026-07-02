@@ -13,16 +13,19 @@ TARGET_CHANNEL_URL = "https://www.youtube.com/channel/UCGfI2yGzrs45oQjL8FnOhjg"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
+# Utiliser le fichier cookie pour s'authentifier
+COOKIE_PATH = 'cookies.txt'
+
 def get_latest_video_and_transcript():
-    print("[1] Recherche de la dernière vidéo de la chaîne...")
+    print("[1] Recherche de la dernière vidéo...")
     ydl_opts = {
         'extract_flat': 'in_playlist', 
         'playlist_items': '1', 
         'quiet': True,
+        'cookiefile': COOKIE_PATH, # <--- Ajout ici
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
-    # On cible l'onglet /videos pour éviter les erreurs d'ID
     channel_videos_url = f"{TARGET_CHANNEL_URL}/videos"
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -31,7 +34,6 @@ def get_latest_video_and_transcript():
         
     print(f"[1] Vidéo détectée : {video_id}. Téléchargement des sous-titres...")
     
-    # Nettoyage des anciens fichiers
     for f in ['subtitle_file.fr.vtt', 'subtitle_file.en.vtt', 'subtitle_file.vtt']:
         if os.path.exists(f): os.remove(f)
         
@@ -40,7 +42,8 @@ def get_latest_video_and_transcript():
         'writesubtitles': True,
         'subtitleslangs': ['fr', 'en'],
         'outtmpl': 'subtitle_file',
-        'quiet': True
+        'quiet': True,
+        'cookiefile': COOKIE_PATH # <--- Ajout ici
     }
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
@@ -67,8 +70,8 @@ def identify_viral_segment(transcript_text):
 
 def download_and_process_video(video_id, segment):
     print("[3] Traitement vidéo...")
-    # Téléchargement du segment
-    cmd = f'yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{segment["start"]}-{segment["end"]}" -o raw_video.mp4 https://www.youtube.com/watch?v={video_id}'
+    # On ajoute aussi le cookie ici au cas où
+    cmd = f'yt-dlp --cookies {COOKIE_PATH} -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{segment["start"]}-{segment["end"]}" -o raw_video.mp4 https://www.youtube.com/watch?v={video_id}'
     os.system(cmd)
     
     clip = VideoFileClip("raw_video.mp4")
