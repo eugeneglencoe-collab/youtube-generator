@@ -29,13 +29,18 @@ def get_latest_video_and_transcript():
         
     print(f"[1] Vidéo trouvée : {video_id}. Extraction de la transcription...")
     try:
-        # Appel corrigé pour la version actuelle de la librairie
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        transcript = transcript_list.find_transcript(['fr', 'en']).fetch()
-        text_content = " ".join([t['text'] for t in transcript])
-        return video_id, text_content, transcript
+        # Méthode universelle qui fonctionne même si la liste est vide ou complexe
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['fr', 'en'])
+        
+        # Vérification si transcript est une liste avant de joindre
+        if isinstance(transcript, list):
+            text_content = " ".join([t['text'] for t in transcript])
+            return video_id, text_content, transcript
+        else:
+            raise Exception("Format de transcription inattendu")
+            
     except Exception as e:
-        print(f"Erreur transcription: {e}")
+        print(f"Erreur transcription critique: {e}")
         return None, None, None
 
 def identify_viral_segment(transcript_text):
