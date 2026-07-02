@@ -22,12 +22,12 @@ else:
 def get_latest_video_and_transcript():
     print("[1] Recherche de la dernière vidéo...")
     
-    # Stratégie sans cookie : utilisation des clients mobiles natifs
     ydl_opts = {
         'extract_flat': 'in_playlist', 
         'playlist_items': '1', 
         'quiet': False,
-        'extractor_args': {'youtube': ['player_client=ios,android']},
+        'extractor_args': {'youtube': ['player_client=ios,android,web']},
+        'js_runtimes': ['node'], # 🔴 AUTORISE L'UTILISATION DE NODE.JS POUR LE CHALLENGE
     }
     
     channel_videos_url = f"{TARGET_CHANNEL_URL}/videos"
@@ -45,7 +45,8 @@ def get_latest_video_and_transcript():
         'subtitleslangs': ['fr', 'en'],
         'outtmpl': 'subtitle_file',
         'quiet': False,
-        'extractor_args': {'youtube': ['player_client=ios,android']},
+        'extractor_args': {'youtube': ['player_client=ios,android,web']},
+        'js_runtimes': ['node'], # 🔴 AUTORISE L'UTILISATION DE NODE.JS
     }
     
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
@@ -102,8 +103,8 @@ def download_and_process_video(video_id, segment):
     start_sec = segment["start"]
     end_sec = segment["end"]
     
-    # Commande épurée sans l'argument --cookies
-    cmd = f'yt-dlp --extractor-args "youtube:player_client=ios,android" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{start_sec}-{end_sec}" -o {raw_video} https://www.youtube.com/watch?v={video_id}'
+    # 🔴 AJOUT DE --js-runtimes node DANS LA COMMANDE DE TÉLÉCHARGEMENT
+    cmd = f'yt-dlp --js-runtimes node --extractor-args "youtube:player_client=ios,android,web" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{start_sec}-{end_sec}" -o {raw_video} https://www.youtube.com/watch?v={video_id}'
     os.system(cmd)
     
     print("[3] Rognage de la vidéo (Format Short 9:16)...")
