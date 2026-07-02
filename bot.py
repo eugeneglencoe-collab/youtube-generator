@@ -12,17 +12,24 @@ from google.auth.transport.requests import Request
 TARGET_CHANNEL_URL = "https://www.youtube.com/channel/UCGfI2yGzrs45oQjL8FnOhjg" 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
-
-# Utiliser le fichier cookie pour s'authentifier
 COOKIE_PATH = 'cookies.txt'
+
+def check_cookies():
+    if not os.path.exists(COOKIE_PATH):
+        print(f"❌ ERREUR CRITIQUE : Le fichier {COOKIE_PATH} est introuvable à la racine !")
+        return False
+    print(f"✅ Fichier {COOKIE_PATH} trouvé.")
+    return True
 
 def get_latest_video_and_transcript():
     print("[1] Recherche de la dernière vidéo...")
+    check_cookies()
+    
     ydl_opts = {
         'extract_flat': 'in_playlist', 
         'playlist_items': '1', 
-        'quiet': True,
-        'cookiefile': COOKIE_PATH, # <--- Ajout ici
+        'quiet': False, # Mis sur False pour voir si yt-dlp utilise bien les cookies
+        'cookiefile': COOKIE_PATH,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
     
@@ -34,16 +41,13 @@ def get_latest_video_and_transcript():
         
     print(f"[1] Vidéo détectée : {video_id}. Téléchargement des sous-titres...")
     
-    for f in ['subtitle_file.fr.vtt', 'subtitle_file.en.vtt', 'subtitle_file.vtt']:
-        if os.path.exists(f): os.remove(f)
-        
     sub_opts = {
         'skip_download': True,
         'writesubtitles': True,
         'subtitleslangs': ['fr', 'en'],
         'outtmpl': 'subtitle_file',
-        'quiet': True,
-        'cookiefile': COOKIE_PATH # <--- Ajout ici
+        'quiet': False,
+        'cookiefile': COOKIE_PATH
     }
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
@@ -60,7 +64,7 @@ def get_latest_video_and_transcript():
 def identify_viral_segment(transcript_text):
     print("[2] Analyse Gemini...")
     model = genai.GenerativeModel('gemini-1.5-flash')
-    prompt = f"Analyse ce texte et renvoie uniquement un JSON (start, end, title) pour un segment viral de 30s. Texte : {transcript_text[:10000]}"
+    prompt = f"Analyse ce texte et renvoie uniquement un JSON (start, end, title) pour un segment viral. Texte : {transcript_text[:10000]}"
     response = model.generate_content(prompt)
     try:
         cleaned = response.text.replace("```json", "").replace("```", "").strip()
@@ -69,9 +73,9 @@ def identify_viral_segment(transcript_text):
         return {"start": 10, "end": 40, "title": "Vidéo virale"}
 
 def download_and_process_video(video_id, segment):
-    print("[3] Traitement vidéo...")
-    # On ajoute aussi le cookie ici au cas où
-    cmd = f'yt-dlp --cookies {COOKIE_PATH} -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{segment["start"]}-{segment["end"]}" -o raw_video.mp4 https://www.youtube.com/watch?v={video_id}'
+    print("[3] Téléchargement du segment...")
+    # Commande explicite avec cookies
+    cmd = f'yt-dlp --cookies {COOKIE_PATH} --user-agent "Mozilla/5.0" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{segment["start"]}-{segment["end"]}" -o raw_video.mp4 https://www.youtube.com/watch?v={video_id}'
     os.system(cmd)
     
     clip = VideoFileClip("raw_video.mp4")
