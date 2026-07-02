@@ -26,9 +26,10 @@ def get_latest_video_and_transcript():
         'extract_flat': 'in_playlist', 
         'playlist_items': '1', 
         'quiet': False,
-        'cookiefile': 'cookies.txt', # 🔴 Authentification via Cookies
+        'cookiefile': 'cookies.txt',
         'extractor_args': {'youtube': ['player_client=android,ios,tv']},
         'js_runtimes': {'node': {}},
+        'remote_components': 'ejs:github', # 🟢 Autorise le téléchargement du débloqueur de challenge JS
     }
     
     channel_videos_url = f"{TARGET_CHANNEL_URL}/videos"
@@ -46,9 +47,10 @@ def get_latest_video_and_transcript():
         'subtitleslangs': ['fr', 'en'],
         'outtmpl': 'subtitle_file',
         'quiet': False,
-        'cookiefile': 'cookies.txt', # 🔴 Authentification via Cookies
+        'cookiefile': 'cookies.txt',
         'extractor_args': {'youtube': ['player_client=android,ios,tv']},
         'js_runtimes': {'node': {}},
+        'remote_components': 'ejs:github',
     }
     
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
@@ -105,8 +107,11 @@ def download_and_process_video(video_id, segment):
     start_sec = segment["start"]
     end_sec = segment["end"]
     
-    # 🔴 Injection de --cookies cookies.txt
-    cmd = f'yt-dlp --cookies cookies.txt --js-runtimes node --extractor-args "youtube:player_client=android,ios,tv" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{start_sec}-{end_sec}" -o {raw_video} https://www.youtube.com/watch?v={video_id}'
+    # 🟢 Changements ici : 
+    # 1. Ajout de --remote-components ejs:github pour résoudre le challenge algorithmique.
+    # 2. Remplacement du filtre -f restrictif par "bestvideo+bestaudio/best" pour obtenir la résolution maximale (WebM/MKV acceptés).
+    # 3. Ajout de --remux-video mp4 pour forcer ffmpeg à empaqueter proprement le tout dans un fichier "raw_video.mp4".
+    cmd = f'yt-dlp --cookies cookies.txt --js-runtimes node --remote-components ejs:github --extractor-args "youtube:player_client=android,ios,tv" -f "bestvideo+bestaudio/best" --remux-video mp4 --download-sections "*{start_sec}-{end_sec}" -o {raw_video} https://www.youtube.com/watch?v={video_id}'
     os.system(cmd)
     
     print("[3] Rognage de la vidéo (Format Short 9:16)...")
