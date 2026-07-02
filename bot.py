@@ -27,7 +27,7 @@ def get_latest_video_and_transcript():
         'playlist_items': '1', 
         'quiet': False,
         'extractor_args': {'youtube': ['player_client=ios,android,web']},
-        'js_runtimes': ['node'], # 🔴 AUTORISE L'UTILISATION DE NODE.JS POUR LE CHALLENGE
+        'js_runtimes': {'node': {}}, # 🔴 Correction ici : format dictionnaire requis
     }
     
     channel_videos_url = f"{TARGET_CHANNEL_URL}/videos"
@@ -46,7 +46,7 @@ def get_latest_video_and_transcript():
         'outtmpl': 'subtitle_file',
         'quiet': False,
         'extractor_args': {'youtube': ['player_client=ios,android,web']},
-        'js_runtimes': ['node'], # 🔴 AUTORISE L'UTILISATION DE NODE.JS
+        'js_runtimes': {'node': {}}, # 🔴 Correction ici également
     }
     
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
@@ -103,7 +103,7 @@ def download_and_process_video(video_id, segment):
     start_sec = segment["start"]
     end_sec = segment["end"]
     
-    # 🔴 AJOUT DE --js-runtimes node DANS LA COMMANDE DE TÉLÉCHARGEMENT
+    # La commande CLI reste inchangée car --js-runtimes node y est correct
     cmd = f'yt-dlp --js-runtimes node --extractor-args "youtube:player_client=ios,android,web" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{start_sec}-{end_sec}" -o {raw_video} https://www.youtube.com/watch?v={video_id}'
     os.system(cmd)
     
