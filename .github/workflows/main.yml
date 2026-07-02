@@ -2,7 +2,7 @@ name: ZenPrompt Elite V2 - Repurposing Automatisé
 
 on:
   schedule:
-    - cron: '0 18 * * *' # Se déclenche tous les jours à 20h00
+    - cron: '0 18 * * *'
   workflow_dispatch:
 
 jobs:
@@ -17,16 +17,17 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Installer Deno (Le moteur JS requis par yt-dlp)
-        uses: denoland/setup-deno@v1
+      - name: Installer Node.js (Moteur JS pour contourner YouTube)
+        uses: actions/setup-node@v4
         with:
-          deno-version: v1.x
+          node-version: '22' # Version à jour pour éviter les avertissements
 
       - name: Installer les dépendances
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install -U yt-dlp
+          # L'argument --pre installe la version la plus récente de yt-dlp (Nightly)
+          pip install -U --pre yt-dlp
 
       - name: Lancer le robot de repurposing
         env:
