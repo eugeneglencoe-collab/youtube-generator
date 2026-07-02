@@ -10,7 +10,7 @@ from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 
 # --- CONFIGURATION ---
-TARGET_CHANNEL_URL = "https://www.youtube.com/@ChannelCible" # Remplace bien par ton URL
+TARGET_CHANNEL_URL = "https://www.youtube.com/@AnymeTV" # Remplace bien par ton URL
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 
