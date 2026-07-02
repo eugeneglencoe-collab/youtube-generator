@@ -46,7 +46,7 @@ jobs:
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
         run: python bot.py
 
-        - name: Sauvegarder la mémoire du bot
+      - name: Sauvegarder la mémoire du bot
         run: |
           git config --global user.name "AutoTube Bot"
           git config --global user.email "bot@autotube.com"
