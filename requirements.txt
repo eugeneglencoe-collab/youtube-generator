@@ -1,5 +1,5 @@
+youtube-transcript-api==0.6.2
 google-generativeai
-youtube-transcript-api
 yt-dlp
 opencv-python-headless
 moviepy>=2.0.0
