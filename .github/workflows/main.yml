@@ -2,8 +2,8 @@ name: ZenPrompt Elite V2 - Repurposing Automatisé
 
 on:
   schedule:
-    - cron: '0 18 * * *' # Se déclenche automatiquement tous les jours à 20h00 (Heure Française)
-  workflow_dispatch: # Permet de le lancer manuellement avec le bouton "Run workflow"
+    - cron: '0 18 * * *' # Se déclenche tous les jours à 20h00
+  workflow_dispatch:
 
 jobs:
   run-bot:
@@ -17,20 +17,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Installer un moteur JavaScript (Node.js)
-        uses: actions/setup-node@v4
+      - name: Installer Deno (Le moteur JS requis par yt-dlp)
+        uses: denoland/setup-deno@v1
         with:
-          node-version: '20'
+          deno-version: v1.x
 
       - name: Installer les dépendances
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install -U yt-dlp
-
-      - name: Recréer le fichier cookies.txt depuis les Secrets GitHub
-        run: |
-          echo "${{ secrets.YT_COOKIES }}" > cookies.txt
 
       - name: Lancer le robot de repurposing
         env:
