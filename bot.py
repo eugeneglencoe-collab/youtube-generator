@@ -26,9 +26,9 @@ def get_latest_video_and_transcript():
         'extract_flat': 'in_playlist', 
         'playlist_items': '1', 
         'quiet': False,
-        # 🔴 EXCLUSION TOTALE DE 'WEB' POUR CONTOURNER LE BLOCAGE CLOUD
+        'cookiefile': 'cookies.txt', # 🔴 Authentification via Cookies
         'extractor_args': {'youtube': ['player_client=android,ios,tv']},
-        'js_runtimes': {'node': {}}, # 🔴 Autorise Node.js pour les captchas
+        'js_runtimes': {'node': {}},
     }
     
     channel_videos_url = f"{TARGET_CHANNEL_URL}/videos"
@@ -46,6 +46,7 @@ def get_latest_video_and_transcript():
         'subtitleslangs': ['fr', 'en'],
         'outtmpl': 'subtitle_file',
         'quiet': False,
+        'cookiefile': 'cookies.txt', # 🔴 Authentification via Cookies
         'extractor_args': {'youtube': ['player_client=android,ios,tv']},
         'js_runtimes': {'node': {}},
     }
@@ -104,8 +105,8 @@ def download_and_process_video(video_id, segment):
     start_sec = segment["start"]
     end_sec = segment["end"]
     
-    # 🔴 Injection de --js-runtimes node et retrait de web
-    cmd = f'yt-dlp --js-runtimes node --extractor-args "youtube:player_client=android,ios,tv" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{start_sec}-{end_sec}" -o {raw_video} https://www.youtube.com/watch?v={video_id}'
+    # 🔴 Injection de --cookies cookies.txt
+    cmd = f'yt-dlp --cookies cookies.txt --js-runtimes node --extractor-args "youtube:player_client=android,ios,tv" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{start_sec}-{end_sec}" -o {raw_video} https://www.youtube.com/watch?v={video_id}'
     os.system(cmd)
     
     print("[3] Rognage de la vidéo (Format Short 9:16)...")
