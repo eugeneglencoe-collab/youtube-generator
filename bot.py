@@ -2,8 +2,8 @@ import os
 import json
 import re
 import yt_dlp
-from google import genai # Utilisation du nouveau SDK
-from moviepy.editor import VideoFileClip, vfx # Syntaxe MoviePy 1.x
+from google import genai
+from moviepy.editor import VideoFileClip, vfx
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
@@ -13,7 +13,6 @@ from google.auth.transport.requests import Request
 TARGET_CHANNEL_URL = "https://www.youtube.com/channel/UCGfI2yGzrs45oQjL8FnOhjg" 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-# Initialisation du nouveau client Gemini
 if GEMINI_API_KEY:
     client = genai.Client(api_key=GEMINI_API_KEY)
 else:
@@ -30,7 +29,7 @@ def check_cookies():
     with open(COOKIE_PATH, 'r', encoding='utf-8') as f:
         content = f.read()
         if "youtube.com" not in content:
-            print("⚠️ AVERTISSEMENT : Ton fichier cookies.txt semble ne pas contenir de vrais cookies YouTube. yt-dlp risque d'être bloqué.")
+            print("⚠️ AVERTISSEMENT : Ton fichier cookies.txt semble ne pas contenir de vrais cookies YouTube.")
             
     print(f"✅ Fichier {COOKIE_PATH} trouvé.")
     return True
@@ -39,12 +38,13 @@ def get_latest_video_and_transcript():
     print("[1] Recherche de la dernière vidéo...")
     check_cookies()
     
+    # 🔴 AJOUT DU BYPASS (extractor_args) POUR CONTOURNER LE BLOCAGE YOUTUBE
     ydl_opts = {
         'extract_flat': 'in_playlist', 
         'playlist_items': '1', 
         'quiet': False,
         'cookiefile': COOKIE_PATH,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'extractor_args': {'youtube': ['player_client=ios,android,web']},
     }
     
     channel_videos_url = f"{TARGET_CHANNEL_URL}/videos"
@@ -55,6 +55,7 @@ def get_latest_video_and_transcript():
         
     print(f"[1] Vidéo détectée : {video_id}. Téléchargement des sous-titres...")
     
+    # 🔴 AJOUT DU BYPASS ICI AUSSI
     sub_opts = {
         'skip_download': True,
         'writesubtitles': True,
@@ -62,7 +63,8 @@ def get_latest_video_and_transcript():
         'subtitleslangs': ['fr', 'en'],
         'outtmpl': 'subtitle_file',
         'quiet': False,
-        'cookiefile': COOKIE_PATH
+        'cookiefile': COOKIE_PATH,
+        'extractor_args': {'youtube': ['player_client=ios,android,web']},
     }
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
@@ -89,7 +91,6 @@ def identify_viral_segment(transcript_text):
     """
     
     try:
-        # Appel via le nouveau SDK
         response = client.models.generate_content(
             model='gemini-1.5-flash',
             contents=prompt
@@ -119,7 +120,8 @@ def download_and_process_video(video_id, segment):
     start_sec = segment["start"]
     end_sec = segment["end"]
     
-    cmd = f'yt-dlp --cookies {COOKIE_PATH} --user-agent "Mozilla/5.0" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{start_sec}-{end_sec}" -o {raw_video} https://www.youtube.com/watch?v={video_id}'
+    # 🔴 AJOUT DE L'ARGUMENT DE BYPASS DANS LA COMMANDE OS
+    cmd = f'yt-dlp --cookies {COOKIE_PATH} --extractor-args "youtube:player_client=ios,android,web" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{start_sec}-{end_sec}" -o {raw_video} https://www.youtube.com/watch?v={video_id}'
     os.system(cmd)
     
     print("[3] Rognage de la vidéo (Format Short 9:16)...")
