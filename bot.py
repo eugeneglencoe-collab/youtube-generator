@@ -45,8 +45,10 @@ def get_latest_video_and_transcript():
         'quiet': False,
         'cookiefile': COOKIE_PATH,
         'extractor_args': {
-        'youtube': {
-            'player_client': ['web_safari']
+            'youtube': {
+                'player_client': ['web_safari']
+            }
+        }
     }
     
     channel_videos_url = f"{TARGET_CHANNEL_URL}/videos"
