@@ -29,7 +29,7 @@ def get_latest_video_and_transcript():
         'cookiefile': 'cookies.txt',
         'extractor_args': {'youtube': ['player_client=android,ios,tv']},
         'js_runtimes': {'node': {}},
-        'remote_components': ['ejs:github'], # 🟢 CORRECTION ICI : Ajout des crochets pour faire une liste
+        'remote_components': ['ejs:github'],
     }
     
     channel_videos_url = f"{TARGET_CHANNEL_URL}/videos"
@@ -50,17 +50,20 @@ def get_latest_video_and_transcript():
         'cookiefile': 'cookies.txt',
         'extractor_args': {'youtube': ['player_client=android,ios,tv']},
         'js_runtimes': {'node': {}},
-        'remote_components': ['ejs:github'], # 🟢 CORRECTION ICI : Ajout des crochets
+        'remote_components': ['ejs:github'],
+        'ignoreerrors': True, # 🟢 CORRECTION ICI : Permet de continuer même si le téléchargement d'une langue est bloqué (Erreur 429)
     }
     
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
     
     text_content = ""
+    # On va lire le premier fichier de sous-titres disponible
     for ext in ['.fr.vtt', '.en.vtt', '.vtt']:
         if os.path.exists(f"subtitle_file{ext}"):
             with open(f"subtitle_file{ext}", 'r', encoding='utf-8') as f:
                 text_content = f.read()
+            print(f"✅ Sous-titres chargés depuis subtitle_file{ext}")
             break
             
     if not text_content:
