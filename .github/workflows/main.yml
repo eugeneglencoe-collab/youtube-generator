@@ -17,13 +17,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Installer ffmpeg (Installation native Ubuntu)
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      - name: Installer Deno (Résolution native des challenges JS de YouTube)
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: v1.x
+      - name: Installer ffmpeg et Node.js (Système natif Ubuntu)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg nodejs
 
       - name: Installer les dépendances Python
         run: |
