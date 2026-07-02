@@ -1,15 +1,16 @@
 import os
 import json
+import re
 import yt_dlp
 import google.generativeai as genai
-from moviepy import VideoFileClip
+from moviepy.editor import VideoFileClip, vfx
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 
 # --- CONFIGURATION ---
-TARGET_CHANNEL_URL = "https://www.youtube.com/channel/UCGfI2yGzrs45oQjL8FnOhjg" 
+TARGET_CHANNEL_URL = "[https://www.youtube.com/channel/UCGfI2yGzrs45oQjL8FnOhjg](https://www.youtube.com/channel/UCGfI2yGzrs45oQjL8FnOhjg)" 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 COOKIE_PATH = 'cookies.txt'
@@ -18,6 +19,13 @@ def check_cookies():
     if not os.path.exists(COOKIE_PATH):
         print(f"❌ ERREUR CRITIQUE : Le fichier {COOKIE_PATH} est introuvable à la racine !")
         return False
+    
+    # Vérification si le fichier ne contient que l'en-tête (fichier vide en réalité)
+    with open(COOKIE_PATH, 'r', encoding='utf-8') as f:
+        content = f.read()
+        if "youtube.com" not in content:
+            print("⚠️ AVERTISSEMENT : Ton fichier cookies.txt semble ne pas contenir de vrais cookies YouTube. yt-dlp risque d'être bloqué.")
+            
     print(f"✅ Fichier {COOKIE_PATH} trouvé.")
     return True
 
@@ -28,7 +36,7 @@ def get_latest_video_and_transcript():
     ydl_opts = {
         'extract_flat': 'in_playlist', 
         'playlist_items': '1', 
-        'quiet': False, # Mis sur False pour voir si yt-dlp utilise bien les cookies
+        'quiet': False,
         'cookiefile': COOKIE_PATH,
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
@@ -44,54 +52,95 @@ def get_latest_video_and_transcript():
     sub_opts = {
         'skip_download': True,
         'writesubtitles': True,
+        'writeautomaticsub': True, # CRUCIAL: Télécharge les sous-titres auto si manuels absents
         'subtitleslangs': ['fr', 'en'],
         'outtmpl': 'subtitle_file',
         'quiet': False,
         'cookiefile': COOKIE_PATH
     }
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
-        ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
+        ydl.download([f"[https://www.youtube.com/watch?v=](https://www.youtube.com/watch?v=){video_id}"])
     
     text_content = ""
+    # On cherche le fichier de sous-titres (manuel ou auto)
     for ext in ['.fr.vtt', '.en.vtt', '.vtt']:
         if os.path.exists(f"subtitle_file{ext}"):
             with open(f"subtitle_file{ext}", 'r', encoding='utf-8') as f:
                 text_content = f.read()
             break
             
+    if not text_content:
+        print("⚠️ Aucun sous-titre trouvé, l'analyse risque d'échouer.")
+            
     return video_id, text_content
 
 def identify_viral_segment(transcript_text):
     print("[2] Analyse Gemini...")
     model = genai.GenerativeModel('gemini-1.5-flash')
-    prompt = f"Analyse ce texte et renvoie uniquement un JSON (start, end, title) pour un segment viral. Texte : {transcript_text[:10000]}"
+    
+    # Prompt amélioré pour forcer un format strict
+    prompt = f"""
+    Analyse ce texte de sous-titres vidéo et trouve le moment le plus captivant pour en faire un Short (durée : 15 à 60 secondes).
+    Tu DOIS répondre UNIQUEMENT par un objet JSON valide avec les clés : "start" (entier en secondes), "end" (entier en secondes) et "title" (titre accrocheur).
+    Texte : {transcript_text[:10000]}
+    """
+    
     response = model.generate_content(prompt)
+    
     try:
-        cleaned = response.text.replace("```json", "").replace("```", "").strip()
-        return json.loads(cleaned)
-    except:
+        # Nettoyage robuste : on cherche uniquement ce qui ressemble à un JSON
+        match = re.search(r'\{.*?\}', response.text, re.DOTALL)
+        if match:
+            segment = json.loads(match.group(0))
+            # On s'assure que start et end sont bien des entiers (secondes)
+            segment["start"] = int(segment.get("start", 10))
+            segment["end"] = int(segment.get("end", 40))
+            return segment
+        else:
+            raise ValueError("Aucun JSON trouvé dans la réponse.")
+    except Exception as e:
+        print(f"⚠️ Erreur de parsing Gemini ({e}), utilisation des valeurs par défaut.")
         return {"start": 10, "end": 40, "title": "Vidéo virale"}
 
 def download_and_process_video(video_id, segment):
     print("[3] Téléchargement du segment...")
-    # Commande explicite avec cookies
-    cmd = f'yt-dlp --cookies {COOKIE_PATH} --user-agent "Mozilla/5.0" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{segment["start"]}-{segment["end"]}" -o raw_video.mp4 https://www.youtube.com/watch?v={video_id}'
+    
+    raw_video = "raw_video.mp4"
+    final_video = "final_short.mp4"
+    
+    if os.path.exists(raw_video): os.remove(raw_video)
+    if os.path.exists(final_video): os.remove(final_video)
+
+    # yt-dlp attend des secondes ou HH:MM:SS, on s'assure d'avoir des entiers
+    start_sec = segment["start"]
+    end_sec = segment["end"]
+    
+    cmd = f'yt-dlp --cookies {COOKIE_PATH} --user-agent "Mozilla/5.0" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" --download-sections "*{start_sec}-{end_sec}" -o {raw_video} [https://www.youtube.com/watch?v=](https://www.youtube.com/watch?v=){video_id}'
     os.system(cmd)
     
-    clip = VideoFileClip("raw_video.mp4")
+    print("[3] Rognage de la vidéo (Format Short 9:16)...")
+    clip = VideoFileClip(raw_video)
     w, h = clip.size
     target_w = int(h * 9/16)
     x1 = (w - target_w) // 2
     
-    cropped = clip.crop(x1=x1, y1=0, x2=x1+target_w, y2=h)
-    cropped.write_videofile("final_short.mp4", codec="libx264", audio_codec="aac")
-    return "final_short.mp4"
+    # Méthode de crop universelle pour MoviePy
+    cropped = clip.fx(vfx.crop, x1=x1, y1=0, x2=x1+target_w, y2=h)
+    
+    # Écriture du fichier final
+    cropped.write_videofile(final_video, codec="libx264", audio_codec="aac", logger=None)
+    
+    # Libération de la mémoire
+    clip.close()
+    cropped.close()
+    
+    return final_video
 
 def get_authenticated_service():
     creds = Credentials(
         token=None,
         refresh_token=os.environ.get("YT_REFRESH_TOKEN"),
-        token_uri="https://oauth2.googleapis.com/token",
+        token_uri="[https://oauth2.googleapis.com/token](https://oauth2.googleapis.com/token)",
         client_id=os.environ.get("YT_CLIENT_ID"),
         client_secret=os.environ.get("YT_CLIENT_SECRET")
     )
@@ -101,16 +150,26 @@ def get_authenticated_service():
 def upload_short(youtube, file_path, metadata):
     print("[4] Upload sur YouTube...")
     body = {
-        'snippet': {'title': metadata.get('title', 'Short généré par IA'), 'categoryId': '22'}, 
+        'snippet': {
+            'title': metadata.get('title', 'Short généré par IA'), 
+            'categoryId': '22',
+            'description': '#shorts #ia'
+        }, 
         'status': {'privacyStatus': 'public'}
     }
     media = MediaFileUpload(file_path, mimetype='video/mp4')
     response = youtube.videos().insert(part="snippet,status", body=body, media_body=media).execute()
-    print(f"✅ Succès : https://youtube.com/shorts/{response['id']}")
+    print(f"✅ Succès : [https://youtube.com/shorts/](https://youtube.com/shorts/){response['id']}")
 
 if __name__ == "__main__":
     vid_id, text = get_latest_video_and_transcript()
     segment = identify_viral_segment(text)
+    print(f"🎬 Segment identifié : {segment}")
+    
     final_mp4 = download_and_process_video(vid_id, segment)
-    yt_service = get_authenticated_service()
-    upload_short(yt_service, final_mp4, segment)
+    
+    try:
+        yt_service = get_authenticated_service()
+        upload_short(yt_service, final_mp4, segment)
+    except Exception as e:
+        print(f"❌ Erreur lors de l'upload YouTube : {e}")
