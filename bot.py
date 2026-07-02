@@ -29,7 +29,9 @@ def get_latest_video_and_transcript():
         
     print(f"[1] Vidéo trouvée : {video_id}. Extraction de la transcription...")
     try:
-        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=['fr', 'en'])
+        # Appel corrigé pour la version actuelle de la librairie
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        transcript = transcript_list.find_transcript(['fr', 'en']).fetch()
         text_content = " ".join([t['text'] for t in transcript])
         return video_id, text_content, transcript
     except Exception as e:
