@@ -4,7 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZenPrompt Elite V2 | Dashboard</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.13/dist/modules/libsodium-wrappers.js"></script>
+    
     <style>
         :root {
             --bg: #0f172a; --panel: #1e293b; --text: #f8fafc;
@@ -33,6 +35,7 @@
         .video-item { display: flex; gap: 1rem; margin-bottom: 1rem; background: var(--bg); padding: 1rem; border-radius: 4px; }
         .video-item img { width: 120px; border-radius: 4px; object-fit: cover; }
         .stats { font-size: 0.85rem; color: #94a3b8; }
+        .status-msg { font-size: 0.85rem; margin-top: 1rem; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -55,7 +58,7 @@
                     <input type="password" id="gemini-key" placeholder="AIzaSy...">
                 </div>
                 <button onclick="updateSecrets()">Mettre à jour les secrets GitHub</button>
-                <p id="config-status" style="font-size: 0.85rem; margin-top: 1rem;"></p>
+                <p id="config-status" class="status-msg"></p>
             </div>
 
             <div class="card">
@@ -75,40 +78,70 @@
     </div>
 
     <script>
-        // --- GESTION GITHUB (Mise à jour des Secrets) ---
+        // --- GESTION GITHUB (Mise à jour des Secrets via Libsodium) ---
+        
+        // Fonction utilitaire pour s'assurer que libsodium est bien chargé
+        async function initSodium() {
+            // 'libsodium' est l'objet global fourni par la librairie
+            await libsodium.ready;
+            return libsodium;
+        }
+
         async function updateSecrets() {
-            const pat = document.getElementById('gh-pat').value;
-            const repo = document.getElementById('gh-repo').value;
-            const geminiKey = document.getElementById('gemini-key').value;
+            // Le .trim() retire automatiquement les espaces en trop copiés par erreur
+            const pat = document.getElementById('gh-pat').value.trim();
+            const repo = document.getElementById('gh-repo').value.trim();
+            const geminiKey = document.getElementById('gemini-key').value.trim();
             const status = document.getElementById('config-status');
 
-            if (!pat || !repo || !geminiKey) return alert("Remplissez tous les champs GitHub.");
-            status.textContent = "Récupération de la clé publique...";
-        
+            if (!pat || !repo || !geminiKey) {
+                status.textContent = "❌ Remplissez tous les champs GitHub.";
+                status.style.color = "#ef4444";
+                return;
+            }
+            
             try {
-                // 1. Récupérer la clé publique du dépôt
-                const pubKeyRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/public-key`, {
-                    headers: { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github.v3+json' }
-                });
-                const pubKeyData = await pubKeyRes.json();
+                status.style.color = "#cbd5e1";
+                status.textContent = "⏳ Initialisation de la cryptographie...";
                 
-                if(!pubKeyData.key) throw new Error("Impossible d'obtenir la clé publique. Vérifiez le PAT.");
+                // Chargement de l'instance sodium
+                const sodium = await initSodium();
 
-                status.textContent = "Chiffrement du secret...";
+                status.textContent = "⏳ Récupération de la clé publique...";
+                const pubKeyRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/public-key`, {
+                    headers: { 
+                        'Authorization': `Bearer ${pat}`, 
+                        'Accept': 'application/vnd.github.v3+json',
+                        'X-GitHub-Api-Version': '2022-11-28'
+                    }
+                });
+                
+                if (!pubKeyRes.ok) {
+                    const errData = await pubKeyRes.json();
+                    throw new Error(`Erreur API (${pubKeyRes.status}): ${errData.message}`);
+                }
+                
+                const pubKeyData = await pubKeyRes.json();
+                if (!pubKeyData.key) throw new Error("Clé publique introuvable.");
 
-                // 2. Chiffrement réel avec libsodium-wrappers (requis par GitHub)
-                await sodium.ready; // Attendre que la librairie crypto soit chargée
+                status.textContent = "⏳ Chiffrement du secret...";
+
+                // Chiffrement strict selon la documentation GitHub (Sealed Box)
                 const binkey = sodium.from_base64(pubKeyData.key, sodium.base64_variants.ORIGINAL);
                 const binsec = sodium.from_string(geminiKey);
                 const encBytes = sodium.crypto_box_seal(binsec, binkey);
                 const encryptedValue = sodium.to_base64(encBytes, sodium.base64_variants.ORIGINAL);
 
-                status.textContent = "Envoi à GitHub...";
+                status.textContent = "⏳ Envoi à GitHub...";
 
-                // 3. Envoi réel du secret chiffré à l'API GitHub
+                // Envoi du secret chiffré
                 const putRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/GEMINI_API_KEY`, {
                     method: 'PUT',
-                    headers: { 'Authorization': `token ${pat}`, 'Accept': 'application/vnd.github.v3+json' },
+                    headers: { 
+                        'Authorization': `Bearer ${pat}`, 
+                        'Accept': 'application/vnd.github.v3+json',
+                        'X-GitHub-Api-Version': '2022-11-28'
+                    },
                     body: JSON.stringify({ 
                         encrypted_value: encryptedValue, 
                         key_id: pubKeyData.key_id 
@@ -116,33 +149,47 @@
                 });
 
                 if (putRes.ok || putRes.status === 201 || putRes.status === 204) {
-                    status.textContent = "✅ Secret GEMINI_API_KEY mis à jour avec succès dans GitHub !";
+                    status.style.color = "#22c55e"; // Vert
+                    status.textContent = "✅ GEMINI_API_KEY injectée avec succès !";
                 } else {
-                    throw new Error(`Erreur lors de l'envoi (${putRes.status})`);
+                    const err = await putRes.json();
+                    throw new Error(err.message || "Erreur lors de l'envoi");
                 }
-        
+                
             } catch (err) {
+                status.style.color = "#ef4444"; // Rouge
                 status.textContent = `❌ Erreur : ${err.message}`;
+                console.error("[Erreur de mise à jour du secret]:", err);
             }
         }
+
         // --- GESTION YOUTUBE (Analytiques) ---
         async function fetchShorts() {
-            const apiKey = document.getElementById('yt-api-key').value;
-            const channelId = document.getElementById('yt-channel-id').value;
+            const apiKey = document.getElementById('yt-api-key').value.trim();
+            const channelId = document.getElementById('yt-channel-id').value.trim();
             const container = document.getElementById('analytics-results');
             
-            if (!apiKey || !channelId) return alert("Remplissez l'API Key et le Channel ID.");
-            container.innerHTML = "Chargement...";
+            if (!apiKey || !channelId) {
+                container.innerHTML = `<span style="color: #ef4444;">❌ Remplissez l'API Key et le Channel ID.</span>`;
+                return;
+            }
+            
+            container.innerHTML = "⏳ Chargement...";
 
             try {
-                // Rechercher les dernières vidéos
+                // Rechercher les dernières vidéos de la chaîne
                 const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${channelId}&maxResults=5&order=date&type=video&key=${apiKey}`);
                 const data = await res.json();
                 
                 if (data.error) throw new Error(data.error.message);
+                if (!data.items || data.items.length === 0) {
+                    container.innerHTML = "Aucune vidéo trouvée sur cette chaîne.";
+                    return;
+                }
 
                 container.innerHTML = '';
-                // Récupérer les stats détaillées pour ces vidéos
+                
+                // Récupérer les stats détaillées
                 const videoIds = data.items.map(i => i.id.videoId).join(',');
                 const statsRes = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=statistics&id=${videoIds}&key=${apiKey}`);
                 const statsData = await statsRes.json();
@@ -164,7 +211,8 @@
                     container.appendChild(div);
                 });
             } catch(err) {
-                container.innerHTML = `❌ Erreur : ${err.message}`;
+                container.innerHTML = `<span style="color: #ef4444;">❌ Erreur : ${err.message}</span>`;
+                console.error("[Erreur YouTube API]:", err);
             }
         }
     </script>
