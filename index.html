@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ZenPrompt Elite V2 | Dashboard</title>
     
-    <script src="https://cdn.jsdelivr.net/npm/libsodium-wrappers@0.7.13/dist/modules/libsodium-wrappers.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tweetnacl-util@0.15.1/nacl-util.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tweetnacl-sealedbox-js@1.2.0/sealedbox.web.js"></script>
     
     <style>
         :root {
@@ -78,17 +80,9 @@
     </div>
 
     <script>
-        // --- GESTION GITHUB (Mise à jour des Secrets via Libsodium) ---
+        // --- GESTION GITHUB (Mise à jour des Secrets via TweetNaCl) ---
         
-        // Fonction utilitaire pour s'assurer que libsodium est bien chargé
-        async function initSodium() {
-            // 'libsodium' est l'objet global fourni par la librairie
-            await libsodium.ready;
-            return libsodium;
-        }
-
         async function updateSecrets() {
-            // Le .trim() retire automatiquement les espaces en trop copiés par erreur
             const pat = document.getElementById('gh-pat').value.trim();
             const repo = document.getElementById('gh-repo').value.trim();
             const geminiKey = document.getElementById('gemini-key').value.trim();
@@ -102,12 +96,9 @@
             
             try {
                 status.style.color = "#cbd5e1";
-                status.textContent = "⏳ Initialisation de la cryptographie...";
-                
-                // Chargement de l'instance sodium
-                const sodium = await initSodium();
-
                 status.textContent = "⏳ Récupération de la clé publique...";
+                
+                // 1. Récupérer la clé publique du dépôt GitHub
                 const pubKeyRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/public-key`, {
                     headers: { 
                         'Authorization': `Bearer ${pat}`, 
@@ -126,15 +117,16 @@
 
                 status.textContent = "⏳ Chiffrement du secret...";
 
-                // Chiffrement strict selon la documentation GitHub (Sealed Box)
-                const binkey = sodium.from_base64(pubKeyData.key, sodium.base64_variants.ORIGINAL);
-                const binsec = sodium.from_string(geminiKey);
-                const encBytes = sodium.crypto_box_seal(binsec, binkey);
-                const encryptedValue = sodium.to_base64(encBytes, sodium.base64_variants.ORIGINAL);
+                // 2. Chiffrement 100% JS (remplace Libsodium et évite l'erreur 'sodium is not defined')
+                const binkey = nacl.util.decodeBase64(pubKeyData.key);
+                const binsec = nacl.util.decodeUTF8(geminiKey);
+                
+                const encBytes = sealedBox.seal(binsec, binkey);
+                const encryptedValue = nacl.util.encodeBase64(encBytes);
 
                 status.textContent = "⏳ Envoi à GitHub...";
 
-                // Envoi du secret chiffré
+                // 3. Envoi du secret chiffré à l'API GitHub
                 const putRes = await fetch(`https://api.github.com/repos/${repo}/actions/secrets/GEMINI_API_KEY`, {
                     method: 'PUT',
                     headers: { 
