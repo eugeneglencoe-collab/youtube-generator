@@ -1,10 +1,13 @@
 name: ZenPrompt Elite V2 - Repurposing Automatisé
 
 on:
-  schedule:
-    - cron: '0 18 * * *'
   workflow_dispatch:
-
+  schedule:
+    - cron: '30 07 * * *' # 7h30
+    - cron: '00 11 * * *' # 11h00
+    - cron: '00 13 * * *' # 13h00
+    - cron: '00 18 * * *' # 18h00
+    - cron: '00 20 * * *' # 20h00
 jobs:
   run-bot:
     runs-on: ubuntu-latest
