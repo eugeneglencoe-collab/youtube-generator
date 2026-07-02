@@ -1,8 +1,9 @@
-google-generativeai==0.3.2
-youtube-transcript-api==0.6.2
-yt-dlp==2023.12.30
-opencv-python-headless==4.9.0.80
-moviepy==1.0.3
-google-auth==2.26.2
-google-auth-oauthlib==1.2.0
-google-api-python-client==2.114.0
+google-generativeai
+youtube-transcript-api
+yt-dlp
+opencv-python-headless
+moviepy
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+numpy<2.0.0
