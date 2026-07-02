@@ -5,7 +5,8 @@ import google.generativeai as genai
 from youtube_transcript_api import YouTubeTranscriptApi
 import yt_dlp
 import cv2
-from moviepy import VideoFileClip, TextClip, CompositeVideoClipfrom google.oauth2.credentials import Credentials
+from moviepy import VideoFileClip, TextClip, CompositeVideoClip
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
