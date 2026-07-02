@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Installer ffmpeg et Node.js (Système natif Ubuntu)
+      - name: Installer ffmpeg et Node.js
         run: sudo apt-get update && sudo apt-get install -y ffmpeg nodejs
 
       - name: Installer les dépendances Python
@@ -26,7 +26,13 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           pip install -U --pre yt-dlp
 
-      - name: Nettoyer le cache yt-dlp au démarrage
+      - name: Injecter les Cookies YouTube (Bypass IP Cloud)
+        run: |
+          cat << 'EOF' > cookies.txt
+          ${{ secrets.YT_COOKIES }}
+          EOF
+
+      - name: Nettoyer le cache yt-dlp
         run: yt-dlp --rm-cache-dir
 
       - name: Lancer le robot de repurposing
