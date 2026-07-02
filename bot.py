@@ -51,14 +51,13 @@ def get_latest_video_and_transcript():
         'extractor_args': {'youtube': ['player_client=android,ios,tv']},
         'js_runtimes': {'node': {}},
         'remote_components': ['ejs:github'],
-        'ignoreerrors': True, # 🟢 CORRECTION ICI : Permet de continuer même si le téléchargement d'une langue est bloqué (Erreur 429)
+        'ignoreerrors': True, 
     }
     
     with yt_dlp.YoutubeDL(sub_opts) as ydl:
         ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
     
     text_content = ""
-    # On va lire le premier fichier de sous-titres disponible
     for ext in ['.fr.vtt', '.en.vtt', '.vtt']:
         if os.path.exists(f"subtitle_file{ext}"):
             with open(f"subtitle_file{ext}", 'r', encoding='utf-8') as f:
@@ -81,8 +80,9 @@ def identify_viral_segment(transcript_text):
     """
     
     try:
+        # CORRECTION GEMINI ICI : Utilisation du modèle 2.5
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.5-flash',
             contents=prompt
         )
         
@@ -129,6 +129,7 @@ def download_and_process_video(video_id, segment):
     return final_video
 
 def get_authenticated_service():
+    # C'est ici que l'erreur Youtube s'est produite : YT_REFRESH_TOKEN est vide dans GitHub !
     creds = Credentials(
         token=None,
         refresh_token=os.environ.get("YT_REFRESH_TOKEN"),
